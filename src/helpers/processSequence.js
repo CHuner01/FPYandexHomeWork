@@ -15,37 +15,70 @@
  * Ответ будет приходить в поле {result}
  */
  import Api from '../tools/api';
+import {allPass, compose, match, tap, length, prop} from "ramda";
 
  const api = new Api();
 
- /**
-  * Я – пример, удали меня
-  */
- const wait = time => new Promise(resolve => {
-     setTimeout(resolve, time);
- })
+const getBinary = (number) => api.get('https://api.tech/numbers/base', {
+    from: 10,
+    to: 2,
+    number,
+});
+const getAnimal = (id) => api.get(`https://animals.tech/${id}`);
 
- const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-     /**
-      * Я – пример, удали меня
-      */
-     writeLog(value);
+const roundNum = compose(Math.round, Number)
 
-     api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-         writeLog(result);
-     });
+const validateValue = (val) => allPass([
+    compose((count) => count < 10, length),
+    compose((count) => count > 2, length),
+    (val) => Number(val) > 0,
+    compose(Boolean, match(/^\d+(\.\d+)?$/))
+])(val)
 
-     wait(2500).then(() => {
-         writeLog('SecondLog')
+const logValue = (writeLog) => tap(writeLog);
 
-         return wait(1500);
-     }).then(() => {
-         writeLog('ThirdLog');
+const logLength = (writeLog) => (str) => {
+    const len = str.length;
+    writeLog(len);
+    return len;
+};
 
-         return wait(400);
-     }).then(() => {
-         handleSuccess('Done');
-     });
- }
+const logSquared = (writeLog) => (num) => {
+    const sq = num ** 2;
+    writeLog(sq);
+    return sq;
+};
+
+const logRemainder = (writeLog) => (num) => {
+    const rem = num % 3;
+    writeLog(rem);
+    return rem;
+};
+
+
+const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
+    writeLog(value);
+
+    if (!validateValue(value)) {
+        handleError('ValidationError');
+        return;
+    }
+
+    const rounded = roundNum(value);
+    writeLog(rounded);
+
+    return getBinary(rounded)
+        .then(prop('result'))
+        .then(logValue(writeLog))
+        .then(logLength(writeLog))
+        .then(logSquared(writeLog))
+        .then(logRemainder(writeLog))
+        .then(getAnimal)
+        .then(prop('result'))
+        .then(handleSuccess)
+        .catch(handleError);
+};
+
+
 
 export default processSequence;
